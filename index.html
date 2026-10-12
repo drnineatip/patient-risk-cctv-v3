@@ -1,0 +1,1281 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>In-room Patient Risk Monitoring</title>
+  <!-- Google Fonts: Sarabun & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Chart.js CDN for Analytics -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Sarabun', 'Inter', 'sans-serif'],
+          },
+          colors: {
+            medPrimary: '#0284c7',
+            medDark: '#0369a1',
+            medNavy: '#0f172a',
+            riskCrit: '#ef4444',
+            riskWarn: '#f59e0b',
+            riskNorm: '#10b981',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Sarabun', 'Inter', sans-serif;
+    }
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.08); opacity: 0.4; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    .pulse-alarm {
+      animation: pulse-ring 1.5s infinite ease-in-out;
+    }
+    @media print {
+      .no-print { display: none !important; }
+      .print-only { display: block !important; }
+      body { background-color: white !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen antialiased flex flex-col justify-between">
+
+  <header id="main-header" class="hidden no-print bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-teal-400 flex items-center justify-center text-white shadow-md">
+          <i class="fa-solid fa-heart-pulse text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-slate-900 leading-tight">In-room Patient Risk Monitoring</h1>
+          <p class="text-xs text-slate-500 flex items-center gap-1.5">
+            <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+            ระบบติดตามความเสี่ยงผู้ป่วยในห้องพักอัจฉริยะ (AI-CCTV Ward)
+          </p>
+        </div>
+      </div>
+
+      <!-- Action Navigation Buttons -->
+      <div class="flex items-center space-x-2 sm:space-x-3">
+        <button id="nav-btn-his" onclick="navigateTo('page-admission')" class="px-3 py-2 text-sm font-medium rounded-lg text-slate-600 hover:text-sky-600 hover:bg-sky-50 transition">
+          <i class="fa-solid fa-hospital-user mr-1.5"></i>รับผู้ป่วย (HIS)
+        </button>
+        <button id="nav-btn-warroom" onclick="navigateTo('page-warroom')" class="px-3 py-2 text-sm font-medium rounded-lg text-slate-600 hover:text-sky-600 hover:bg-sky-50 transition">
+          <i class="fa-solid fa-tv mr-1.5"></i>Wall Room (6 ห้อง)
+        </button>
+        <button id="nav-btn-report" onclick="navigateTo('page-report')" class="px-3 py-2 text-sm font-medium rounded-lg text-slate-600 hover:text-sky-600 hover:bg-sky-50 transition">
+          <i class="fa-solid fa-chart-line mr-1.5"></i>สร้างรายงาน
+        </button>
+        <div class="h-6 w-px bg-slate-300 mx-1"></div>
+        <button onclick="handleLogout()" class="px-3 py-2 text-sm font-medium rounded-lg text-rose-600 hover:bg-rose-50 transition">
+          <i class="fa-solid fa-arrow-right-from-bracket mr-1.5"></i>ออกจากระบบ
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-grow flex items-center justify-center p-4">
+    <!-- PAGE 1: LOGIN -->
+    <div id="page-login" class="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden transition-all duration-300">
+      <div class="bg-gradient-to-r from-sky-700 to-cyan-600 p-8 text-white text-center relative overflow-hidden">
+        <div class="absolute -right-10 -bottom-10 opacity-10 text-white text-9xl">
+          <i class="fa-solid fa-hospital"></i>
+        </div>
+        <div class="w-16 h-16 mx-auto mb-3 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-white text-3xl shadow-inner">
+          <i class="fa-solid fa-shield-halved"></i>
+        </div>
+        <h2 class="text-2xl font-bold tracking-tight">In-room Patient Risk Monitoring</h2>
+        <p class="text-sky-100 text-sm mt-1">ระบบเฝ้าระวังและแจ้งเตือนพฤติกรรมเสี่ยงผู้ป่วย</p>
+      </div>
+
+      <div class="p-8 space-y-5">
+        <!-- Error alert message container -->
+        <div id="login-error-alert" class="hidden bg-rose-50 border-l-4 border-rose-500 p-3.5 rounded text-rose-700 text-sm flex items-center">
+          <i class="fa-solid fa-circle-exclamation mr-2.5 text-base"></i>
+          <span id="login-error-text">ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง</span>
+        </div>
+
+        <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">ชื่อผู้ใช้งาน (Username)</label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
+                <i class="fa-solid fa-user"></i>
+              </span>
+              <input type="text" id="login-username" required placeholder="demo1, demo2, หรือ demo3"
+                class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm transition">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">รหัสผ่าน (Password)</label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
+                <i class="fa-solid fa-lock"></i>
+              </span>
+              <input type="password" id="login-password" required placeholder="demo"
+                class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm transition">
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between pt-1">
+            <button type="button" onclick="openForgotPasswordModal()" class="text-xs text-sky-600 hover:text-sky-700 font-medium hover:underline">
+              ลืมรหัสผ่าน (Forgot Password)
+            </button>
+            <button type="button" onclick="clearLoginForm()" class="text-xs text-slate-500 hover:text-slate-700 font-medium">
+              ล้างข้อมูล
+            </button>
+          </div>
+
+          <div class="pt-2 flex gap-3">
+            <button type="button" onclick="clearLoginForm()" class="w-1/3 py-2.5 px-4 border border-slate-300 rounded-xl text-slate-700 text-sm font-semibold hover:bg-slate-50 transition">
+              Cancel
+            </button>
+            <button type="submit" class="w-2/3 py-2.5 px-4 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-sm font-semibold shadow-md shadow-sky-500/25 transition">
+              <i class="fa-solid fa-right-to-bracket mr-2"></i>เข้าสู่ระบบ
+            </button>
+          </div>
+        </form>
+
+        <!-- Demo Accounts Hint Card -->
+        <div class="p-3 bg-sky-50/70 border border-sky-100 rounded-xl text-xs text-slate-600">
+          <p class="font-semibold text-sky-800 mb-1 flex items-center">
+            <i class="fa-solid fa-key mr-1.5"></i>บัญชีสำหรับทดสอบ (Demo Accounts):
+          </p>
+          <div class="grid grid-cols-3 gap-1.5 text-center mt-1">
+            <button type="button" onclick="fillDemo('demo1')" class="bg-white p-1 rounded border border-sky-200 text-sky-700 hover:bg-sky-100 font-mono">demo1 / demo</button>
+            <button type="button" onclick="fillDemo('demo2')" class="bg-white p-1 rounded border border-sky-200 text-sky-700 hover:bg-sky-100 font-mono">demo2 / demo</button>
+            <button type="button" onclick="fillDemo('demo3')" class="bg-white p-1 rounded border border-sky-200 text-sky-700 hover:bg-sky-100 font-mono">demo3 / demo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="page-admission" class="hidden w-full max-w-4xl bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden my-4">
+      <div class="bg-sky-700 text-white px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-lg bg-sky-600 flex items-center justify-center text-white">
+            <i class="fa-solid fa-id-card-clip text-xl"></i>
+          </div>
+          <div>
+            <h2 class="text-xl font-bold">บันทึกรับผู้ป่วยเข้าวอร์ด & เชื่อมต่อระบบ HIS</h2>
+            <p class="text-xs text-sky-200">ระบบตรวจสอบข้อมูลคนไข้และกำหนดระดับการเฝ้าระวังอัตโนมัติ</p>
+          </div>
+        </div>
+        <span class="text-xs bg-sky-800/80 px-3 py-1 rounded-full border border-sky-600">เชื่อมต่อ HIS โรงพยาบาล</span>
+      </div>
+
+      <div class="p-6 md:p-8 space-y-6">
+        <!-- Quick Selector for testing preset patients -->
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-4">
+          <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+            <i class="fa-solid fa-wand-magic-sparkles text-amber-500 mr-1.5"></i>เลือกข้อมูลผู้ป่วยตัวอย่างเพื่อทดสอบ (Quick Sample):
+          </label>
+          <select id="quick-patient-select" onchange="handlePresetPatientSelect(this.value)" class="w-full bg-white border border-slate-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
+            <option value="">-- กรุณาเลือกคนไข้ตัวอย่าง หรือกรอกข้อมูลด้านล่างเอง --</option>
+          </select>
+        </div>
+
+        <!-- Search Input Section -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1">ชื่อ-นามสกุล ผู้ป่วย</label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
+                <i class="fa-solid fa-user-injured"></i>
+              </span>
+              <input type="text" id="patient-name-input" placeholder="เช่น นายสมศักดิ์ ใจมั่นคง"
+                class="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-sky-500">
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1">หมายเลข HN (Hospital Number)</label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
+                <i class="fa-solid fa-barcode"></i>
+              </span>
+              <input type="text" id="patient-hn-input" placeholder="เช่น HN-2569-10112"
+                class="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-sky-500">
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-end">
+          <button type="button" onclick="connectHIS()" class="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-sm font-semibold shadow transition flex items-center">
+            <i class="fa-solid fa-network-wired mr-2"></i>เชื่อมต่อระบบ HIS
+          </button>
+        </div>
+
+        <!-- HIS Result Status Box -->
+        <div id="his-status-box" class="hidden p-4 rounded-xl text-sm border flex items-center">
+          <i id="his-status-icon" class="text-xl mr-3"></i>
+          <span id="his-status-message" class="font-medium"></span>
+        </div>
+
+        <!-- Auto-populated HIS Data Panel -->
+        <div id="his-details-card" class="hidden border border-sky-200 bg-sky-50/50 rounded-2xl p-6 transition-all duration-300 space-y-4">
+          <h3 class="text-base font-bold text-sky-950 flex items-center">
+            <i class="fa-solid fa-file-medical text-sky-600 mr-2"></i>ข้อมูลเวชระเบียนที่ดึงจากระบบ HIS
+          </h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-white p-3.5 rounded-xl border border-slate-200">
+              <div class="text-xs text-slate-500">อายุ</div>
+              <div id="disp-age" class="text-lg font-bold text-slate-800">-</div>
+            </div>
+            <div class="bg-white p-3.5 rounded-xl border border-slate-200">
+              <div class="text-xs text-slate-500">หมายเลขวอร์ด / ห้องพัก</div>
+              <div id="disp-room" class="text-lg font-bold text-sky-600">-</div>
+            </div>
+            <div class="bg-white p-3.5 rounded-xl border border-slate-200 sm:col-span-2">
+              <div class="text-xs text-slate-500">แพทย์เจ้าของไข้</div>
+              <div id="disp-doctor" class="text-base font-bold text-slate-800">-</div>
+            </div>
+            <div class="bg-white p-3.5 rounded-xl border border-slate-200 sm:col-span-2">
+              <div class="text-xs text-slate-500">อาการโรคที่วินิจฉัย</div>
+              <div id="disp-diagnosis" class="text-base font-bold text-slate-800">-</div>
+            </div>
+            <div class="bg-white p-3.5 rounded-xl border border-slate-200 sm:col-span-2">
+              <div class="text-xs text-slate-500">ระดับการเฝ้าระวัง</div>
+              <div id="disp-monitoring" class="mt-1 inline-flex px-3 py-1 rounded-full text-sm font-bold bg-amber-100 text-amber-800">-</div>
+            </div>
+          </div>
+
+          <div class="pt-4 border-t border-sky-200 flex justify-end gap-3">
+            <button type="button" onclick="confirmAdmission()" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-md shadow-emerald-600/30 transition flex items-center">
+              <i class="fa-solid fa-clipboard-check mr-2"></i>บันทึก (พยาบาลรับทราบเข้าห้องพัก)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="page-warroom" class="hidden w-full max-w-7xl mx-auto py-2">
+      <!-- Dashboard Top Header Bar -->
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
+            <h2 class="text-2xl font-bold text-slate-900">Wall Room Monitoring (6 ห้องพัก)</h2>
+          </div>
+          <p class="text-sm text-slate-500 mt-1">ระบบวิเคราะห์ภาพ CCTV อัจฉริยะ ตรวจจับการตกเตียง พลิกตัว ไม้กั้นเตียง และความเสี่ยงแบบเรียลไทม์</p>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <div class="bg-slate-100 px-3.5 py-1.5 rounded-xl text-xs font-medium text-slate-600 flex items-center gap-2">
+            <i class="fa-solid fa-clock text-slate-400"></i>
+            <span id="live-clock">--:--:--</span>
+          </div>
+          <button onclick="navigateTo('page-report')" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-sm font-semibold shadow-sm transition flex items-center">
+            <i class="fa-solid fa-chart-pie mr-2"></i>สร้างรายงาน
+          </button>
+        </div>
+      </div>
+
+      <!-- Risk Legend Summary -->
+      <div class="flex flex-wrap gap-2 sm:gap-4 mb-6 text-xs bg-slate-50 p-3 rounded-xl border border-slate-200">
+        <span class="font-semibold text-slate-600">คำอธิบายระดับการเฝ้าระวัง:</span>
+        <span class="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium">ช่วยเหลือตัวเองได้</span>
+        <span class="px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-800 font-medium">ช่วยเหลือตัวเองพอได้</span>
+        <span class="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium">ช่วยเหลือตัวเองไม่ได้</span>
+        <span class="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 font-medium">เฝ้าระวังพิเศษ</span>
+      </div>
+
+      <!-- 6-Room Grid Display -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="warroom-cards-container">
+        <!-- Room cards will be injected by JavaScript -->
+      </div>
+    </div>
+
+    <div id="page-report" class="hidden w-full max-w-7xl mx-auto py-2">
+      <!-- Report Header -->
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm no-print">
+        <div>
+          <h2 class="text-2xl font-bold text-slate-900 flex items-center gap-2">
+            <i class="fa-solid fa-chart-column text-sky-600"></i>รายงานสรุปความเสี่ยงและเหตุการณ์ผู้ป่วย
+          </h2>
+          <p class="text-sm text-slate-500">วิเคราะห์เหตุการณ์ความเสี่ยงย้อนหลังและแนวโน้มการเกิดเหตุ</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button onclick="navigateTo('page-warroom')" class="px-3.5 py-2 border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl text-sm font-semibold transition">
+            <i class="fa-solid fa-arrow-left mr-1.5"></i>กลับหน้า Wall Room
+          </button>
+          <button onclick="window.print()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-sm font-semibold transition">
+            <i class="fa-solid fa-print mr-1.5"></i>พิมพ์รายงาน
+          </button>
+          <button onclick="exportCSV()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold transition">
+            <i class="fa-solid fa-file-csv mr-1.5"></i>Export CSV
+          </button>
+          <button onclick="exportPDF()" class="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-semibold transition">
+            <i class="fa-solid fa-file-pdf mr-1.5"></i>Export PDF
+          </button>
+        </div>
+      </div>
+
+      <!-- Report Filter Selection Bar -->
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm mb-6 no-print space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-sm font-bold text-slate-700">รูปแบบรายงาน:</span>
+            <button onclick="setReportType('daily')" id="rep-btn-daily" class="px-3 py-1.5 text-xs rounded-lg font-semibold bg-sky-600 text-white transition">รายวัน (Daily)</button>
+            <button onclick="setReportType('weekly')" id="rep-btn-weekly" class="px-3 py-1.5 text-xs rounded-lg font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">รายสัปดาห์ (Weekly)</button>
+            <button onclick="setReportType('monthly')" id="rep-btn-monthly" class="px-3 py-1.5 text-xs rounded-lg font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">รายเดือน (Monthly)</button>
+            <button onclick="setReportType('yearly')" id="rep-btn-yearly" class="px-3 py-1.5 text-xs rounded-lg font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">รายปี (Yearly)</button>
+          </div>
+
+          <!-- Dynamic Date Pickers -->
+          <div class="flex items-center gap-2" id="date-filter-inputs">
+            <!-- Injected via JavaScript based on chosen filter -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Chart and Incident Trends -->
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+            <i class="fa-solid fa-chart-line text-sky-600"></i>กราฟแสดงสถิติเหตุการณ์ความเสี่ยงที่ตรวจพบตามช่วงเวลา
+          </h3>
+          <span class="text-xs text-slate-400">อัปเดตอัตโนมัติจากเซ็นเซอร์ AI</span>
+        </div>
+        <div class="h-72 w-full">
+          <canvas id="incidentChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Detailed Incidents Table -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-6">
+        <div class="p-5 border-b border-slate-100 flex items-center justify-between">
+          <h3 class="text-base font-bold text-slate-800">ตารางบันทึกเหตุการณ์ความเสี่ยง (Incident Logs)</h3>
+          <span class="text-xs bg-slate-100 px-3 py-1 rounded-full text-slate-600 font-semibold" id="table-record-count">6 รายการ</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm" id="incidents-table">
+            <thead class="bg-slate-50 text-slate-600 text-xs uppercase font-semibold border-b border-slate-200">
+              <tr>
+                <th class="p-4">เวลาตรวจพบ</th>
+                <th class="p-4">ห้อง</th>
+                <th class="p-4">ผู้ป่วย / HN</th>
+                <th class="p-4">ประเภทเหตุการณ์เสี่ยง</th>
+                <th class="p-4">ระยะเวลาที่ตรวจพบ</th>
+                <th class="p-4">ระดับความเสี่ยง</th>
+                <th class="p-4">สถานะการตอบสนอง</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100" id="incidents-tbody">
+              <!-- Logs populated via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div id="room-detail-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl text-slate-100 flex flex-col max-h-[95vh]">
+      <!-- Modal Top Bar -->
+      <div class="px-6 py-4 bg-slate-800 border-b border-slate-700 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-sky-600 flex items-center justify-center font-bold text-lg" id="modal-room-badge">
+            101
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 class="text-lg font-bold" id="modal-room-title">ห้อง 101 - นายสมศักดิ์ ใจมั่นคง</h3>
+              <span id="modal-room-level-badge" class="px-2.5 py-0.5 rounded-full text-xs font-semibold">ช่วยเหลือตัวเองได้</span>
+            </div>
+            <p class="text-xs text-slate-400" id="modal-room-subtitle">HN: HN-2569-10112 | แพทย์: นพ.ทวีรักษ์ รักการดี</p>
+          </div>
+        </div>
+        <button onclick="closeRoomModal()" class="w-9 h-9 rounded-full bg-slate-700 hover:bg-slate-600 text-slate-300 flex items-center justify-center transition">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <!-- Emergency Flashing Banner (Conditional) -->
+      <div id="modal-emergency-banner" class="hidden bg-rose-600 text-white px-6 py-2.5 font-bold text-sm items-center justify-between animate-pulse">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-triangle-exclamation text-lg"></i>
+          <span>แจ้งหน่วยฉุกเฉินแล้ว! ทีมกู้ชีพกำลังเดินทางไปที่ห้องพัก</span>
+        </div>
+        <span class="text-xs bg-black/30 px-2.5 py-1 rounded">Code Blue Active</span>
+      </div>
+
+      <!-- Body / CCTV Simulation Area -->
+      <div class="p-6 space-y-5 overflow-y-auto">
+        <!-- Mock CCTV Camera Screen -->
+        <div class="relative w-full aspect-video bg-black rounded-xl overflow-hidden border-2 border-slate-700 shadow-inner flex items-center justify-center">
+          <!-- Live Overlay Elements -->
+          <div class="absolute top-4 left-4 z-20 flex items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 text-xs">
+            <span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
+            <span class="font-bold tracking-wider text-rose-400">LIVE CCTV AI</span>
+            <span class="text-slate-400">| CAM-<span id="cctv-cam-id">101</span></span>
+          </div>
+
+          <div class="absolute top-4 right-4 z-20 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 font-mono text-xs text-slate-300" id="cctv-timestamp">
+            2026-10-12 15:45:00
+          </div>
+
+          <!-- Room Visual Simulator (Stylized Bed & Room SVG) -->
+          <div class="relative w-full h-full flex items-center justify-center bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
+            <svg class="w-full h-full opacity-40 max-w-lg" viewBox="0 0 600 350" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <!-- Hospital Room Grid & Wall Lines -->
+              <line x1="50" y1="50" x2="550" y2="50" stroke="#334155" stroke-width="2" />
+              <line x1="50" y1="50" x2="50" y2="300" stroke="#334155" stroke-width="2" />
+              <line x1="550" y1="50" x2="550" y2="300" stroke="#334155" stroke-width="2" />
+              <!-- Patient Bed Structure -->
+              <rect x="180" y="110" width="240" height="150" rx="16" fill="#1e293b" stroke="#475569" stroke-width="3" />
+              <!-- Bed Pillows & Rails -->
+              <rect x="200" y="125" width="60" height="40" rx="8" fill="#334155" />
+              <line x1="185" y1="250" x2="415" y2="250" stroke="#38bdf8" stroke-width="4" stroke-dasharray="8 8" />
+              <line x1="185" y1="115" x2="415" y2="115" stroke="#38bdf8" stroke-width="4" stroke-dasharray="8 8" />
+              <!-- Floor mat / Danger Zone -->
+              <rect x="160" y="265" width="280" height="40" rx="8" fill="#0f172a" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="4 4" />
+            </svg>
+
+            <!-- Dynamic AI Detection Bounding Box Overlay -->
+            <div id="ai-bounding-box" class="absolute border-2 border-rose-500 bg-rose-500/10 rounded-lg p-2 flex flex-col justify-between text-xs transition-all duration-300">
+              <span class="bg-rose-600 text-white px-2 py-0.5 rounded font-mono text-[10px] self-start" id="ai-detect-tag">PATIENT: DETECTED</span>
+              <span class="text-rose-300 font-bold text-center mt-2" id="ai-detect-sub"></span>
+            </div>
+
+            <!-- Intercom Active Voice wave overlay -->
+            <div id="mic-speaking-overlay" class="hidden absolute bottom-6 inset-x-0 mx-auto w-max bg-sky-900/90 border border-sky-400 px-4 py-2 rounded-full flex items-center gap-3 backdrop-blur-md">
+              <i class="fa-solid fa-microphone-lines text-sky-400 animate-bounce"></i>
+              <span class="text-xs text-sky-100 font-medium">กำลังสื่อสารด้วยเสียงสองทาง (Intercom Active)...</span>
+            </div>
+          </div>
+
+          <!-- Risk Status Ribbon in CCTV -->
+          <div class="absolute bottom-4 left-4 z-20 flex items-center gap-2">
+            <div class="px-3 py-1.5 rounded-lg bg-black/80 backdrop-blur-md border border-slate-700 text-xs flex items-center gap-2">
+              <span class="text-slate-400">สถานะความเสี่ยง:</span>
+              <span id="modal-risk-desc" class="font-bold text-amber-400">คนไข้ตกเตียง</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Interactive Control Action Buttons -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <!-- 1. Microphone Intercom -->
+          <button id="btn-mic" onclick="toggleMicrophone()" class="p-3.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center gap-2.5 font-semibold transition text-sm">
+            <i class="fa-solid fa-microphone text-sky-400 text-base"></i>
+            <span id="mic-label">เปิดไมโครโฟนสื่อสาร</span>
+          </button>
+
+          <!-- 2. Porter Call Button -->
+          <button id="btn-porter" onclick="togglePorter()" class="p-3.5 rounded-xl border border-amber-600/40 bg-amber-950/30 hover:bg-amber-900/40 text-amber-200 flex items-center justify-center gap-2.5 font-semibold transition text-sm">
+            <i class="fa-solid fa-wheelchair text-amber-400 text-base"></i>
+            <span id="porter-label">เรียกเวรเปลช่วยเหลือ</span>
+          </button>
+
+          <!-- 3. Emergency (Code Blue) Button -->
+          <button id="btn-emergency" onclick="toggleEmergency()" class="p-3.5 rounded-xl border border-rose-600 bg-rose-950/40 hover:bg-rose-900/50 text-rose-200 flex items-center justify-center gap-2.5 font-semibold transition text-sm">
+            <i class="fa-solid fa-bell text-rose-400 text-base"></i>
+            <span id="emergency-label">ฉุกเฉิน (แจ้งด่วน)</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="forgot-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl border border-slate-100 space-y-4">
+      <div class="flex items-center justify-between border-b pb-3 border-slate-100">
+        <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+          <i class="fa-solid fa-key text-sky-600"></i>รีเซ็ตรหัสผ่าน (Forgot Password)
+        </h3>
+        <button onclick="closeForgotPasswordModal()" class="text-slate-400 hover:text-slate-600">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <p class="text-xs text-slate-600">กรุณากรอกอีเมลที่ลงทะเบียนไว้ในระบบ เพื่อรับลิงก์สำหรับตั้งรหัสผ่านใหม่</p>
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 mb-1">อีเมลที่ลงทะเบียน</label>
+        <input type="email" id="forgot-email-input" placeholder="nurse.station@hospital.go.th"
+          class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-sky-500">
+      </div>
+      <div id="forgot-success-msg" class="hidden p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800">
+        ระบบได้ส่งขั้นตอนการรีเซ็ตรหัสผ่านไปยังอีเมลของท่านแล้ว
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeForgotPasswordModal()" class="px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50">
+          ยกเลิก
+        </button>
+        <button onclick="submitForgotPassword()" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-semibold shadow">
+          ส่งข้อมูลรีเซ็ต
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* Application Global State */
+    const APP_STATE = {
+      currentPage: 'page-login',
+      currentUser: null,
+      selectedRoom: null,
+      micActive: false,
+      porterActive: false,
+      emergencyActive: false,
+      reportFilter: 'daily',
+    };
+
+    /* Preset Hospital HIS Patient Database */
+    const PATIENT_DATABASE = [
+      {
+        name: "นายสมศักดิ์ ใจมั่นคง",
+        hn: "HN-2569-10112",
+        age: 69,
+        room: "101",
+        doctor: "นพ.ทวีรักษ์ รักการดี",
+        diagnosis: "ไข้หวัดใหญ่สายพันธ์ A",
+        monitoring: "ช่วยเหลือตัวเองได้"
+      },
+      {
+        name: "นางสมหญิง รักการดี",
+        hn: "HN-2569-10211",
+        age: 59,
+        room: "104",
+        doctor: "พญ.สมจิต จิตใจดี",
+        diagnosis: "กระดูสะโพกหัก",
+        monitoring: "ช่วยเหลือตัวเองไม่ได้"
+      },
+      {
+        name: "นายสุขใจ สมโภช",
+        hn: "HN-2569-2210",
+        age: 45,
+        room: "105",
+        doctor: "นพ.ทวีรักษ์ รักการดี",
+        diagnosis: "อาหารเป็นพิษ",
+        monitoring: "ช่วยเหลือตัวเองพอได้"
+      },
+      {
+        name: "นางสาวฤทัย สุขสมหวัง",
+        hn: "HN-2569-2251",
+        age: 34,
+        room: "101",
+        doctor: "นพ.ทวีศักดิ์ สุขสมใจ",
+        diagnosis: "ผ่าหัวเข่าซ้าย",
+        monitoring: "ช่วยเหลือตัวเองไม่ได้"
+      },
+      {
+        name: "นายเฟื้องฟู ไทยเจริญ",
+        hn: "HN-2569-1141",
+        age: 62,
+        room: "106",
+        doctor: "นพ.ยศยิ่ง จริงใจ",
+        diagnosis: "กระดูกสันหลังหัก",
+        monitoring: "เฝ้าระวังพิเศษ"
+      },
+      {
+        name: "นางสุขสม สวัสดี",
+        hn: "HN-2569-3110",
+        age: 60,
+        room: "103",
+        doctor: "นพ.ยศยิ่ง จริงใจ",
+        diagnosis: "บายพาสหัวใจ",
+        monitoring: "เฝ้าระวังพิเศษ"
+      },
+      {
+        name: "นางน้ำเงิน สีสวย",
+        hn: "HN-2569-1211",
+        age: 25,
+        room: "102",
+        doctor: "พญ.สมจิต จิตใจดี",
+        diagnosis: "ผ่าตัดตาข้างซ้าย",
+        monitoring: "ช่วยเหลือตัวเองพอได้"
+      }
+    ];
+
+    /* 6 Active Ward Rooms Specification with CCTV Sim Statuses */
+    const ROOMS_CONFIG = [
+      {
+        roomNumber: "101",
+        patientName: "นายสมศักดิ์ ใจมั่นคง",
+        hn: "HN-2569-10112",
+        doctor: "นพ.ทวีรักษ์ รักการดี",
+        diagnosis: "ไข้หวัดใหญ่สายพันธ์ A",
+        monitoring: "ช่วยเหลือตัวเองได้",
+        occupied: true,
+        riskType: "คนไข้ตกเตียง",
+        riskDetail: "CCTV ไม่พบคนไข้อยู่บนเตียง (ตรวจพบการกระแทกพื้น)",
+        riskDuration: "ทันที (0 นาที)",
+        severity: "critical", // critical, warning, normal
+        boxPos: { top: "65%", left: "55%", width: "120px", height: "70px" }
+      },
+      {
+        roomNumber: "102",
+        patientName: "นางน้ำเงิน สีสวย",
+        hn: "HN-2569-1211",
+        doctor: "พญ.สมจิต จิตใจดี",
+        diagnosis: "ผ่าตัดตาข้างซ้าย",
+        monitoring: "ช่วยเหลือตัวเองพอได้",
+        occupied: true,
+        riskType: "ปกติ",
+        riskDetail: "สัญญานชีพและท่านอนเป็นไปตามเกณฑ์มาตรฐาน",
+        riskDuration: "-",
+        severity: "normal",
+        boxPos: { top: "35%", left: "38%", width: "130px", height: "80px" }
+      },
+      {
+        roomNumber: "103",
+        patientName: "นางสุขสม สวัสดี",
+        hn: "HN-2569-3110",
+        doctor: "นพ.ยศยิ่ง จริงใจ",
+        diagnosis: "บายพาสหัวใจ",
+        monitoring: "เฝ้าระวังพิเศษ",
+        occupied: true,
+        riskType: "คนไข้ไม่อยู่ที่เตียงนานเกิน 40 นาที",
+        riskDetail: "ตรวจไม่พบผู้ป่วยในเตียงเกินเกณฑ์ปลอดภัย 25 นาที",
+        riskDuration: "42 นาที",
+        severity: "danger",
+        boxPos: { top: "25%", left: "20%", width: "100px", height: "60px" }
+      },
+      {
+        roomNumber: "104",
+        patientName: "นางสมหญิง รักการดี",
+        hn: "HN-2569-10211",
+        doctor: "พญ.สมจิต จิตใจดี",
+        diagnosis: "กระดูสะโพกหัก",
+        monitoring: "ช่วยเหลือตัวเองไม่ได้",
+        occupied: true,
+        riskType: "คนไข้ดิ้นทุรนทุรายมาแล้ว 10 นาที",
+        riskDetail: "ตรวจจับความเคลื่อนไหวถี่ผิดปกติ (Restless Movement)",
+        riskDuration: "10 นาที",
+        severity: "danger",
+        boxPos: { top: "33%", left: "35%", width: "140px", height: "85px" }
+      },
+      {
+        roomNumber: "105",
+        patientName: "นายสุขใจ สมโภช",
+        hn: "HN-2569-2210",
+        doctor: "นพ.ทวีรักษ์ รักการดี",
+        diagnosis: "อาหารเป็นพิษ",
+        monitoring: "ช่วยเหลือตัวเองพอได้",
+        occupied: true,
+        riskType: "คนไข้นอนบนเตียงแต่ไม้กั้นเตียงตก นานเกิน 10 นาที",
+        riskDetail: "ไม้กั้นเตียงด้านข้างปลดล็อคลงเกิน 5 นาที",
+        riskDuration: "11 นาที",
+        severity: "warning",
+        boxPos: { top: "35%", left: "36%", width: "130px", height: "80px" }
+      },
+      {
+        roomNumber: "106",
+        patientName: "นายเฟื้องฟู ไทยเจริญ",
+        hn: "HN-2569-1141",
+        doctor: "นพ.ยศยิ่ง จริงใจ",
+        diagnosis: "กระดูกสันหลังหัก",
+        monitoring: "เฝ้าระวังพิเศษ",
+        occupied: true,
+        riskType: "คนไข้นอนไม่มีการพลิกตัวนานเกิน 40 นาที",
+        riskDetail: "ความเสี่ยงเกิดแผลกดทับ (Pressure Injury)",
+        riskDuration: "44 นาที",
+        severity: "warning",
+        boxPos: { top: "34%", left: "36%", width: "135px", height: "80px" }
+      }
+    ];
+
+    /* Sample incident log records */
+    let INCIDENT_LOGS = [
+      { time: "15:42", room: "101", patient: "นายสมศักดิ์ ใจมั่นคง", hn: "HN-2569-10112", type: "คนไข้ตกเตียง", duration: "0 นาที", level: "วิกฤต (Critical)", status: "รอเข้าช่วยเหลือ" },
+      { time: "15:35", room: "104", patient: "นางสมหญิง รักการดี", hn: "HN-2569-10211", type: "ดิ้นทุรนทุราย", duration: "10 นาที", level: "อันตราย", status: "พยาบาลกำลังตรวจ" },
+      { time: "15:05", room: "103", patient: "นางสุขสม สวัสดี", hn: "HN-2569-3110", type: "ไม่อยู่ที่เตียงเกิน 25 นาที", duration: "42 นาที", level: "อันตราย", status: "เวรแปลออกตามหา" },
+      { time: "15:34", room: "105", patient: "นายสุขใจ สมโภช", hn: "HN-2569-2210", type: "ไม้กั้นเตียงตก", duration: "11 นาที", level: "เตือนภัย", status: "แจ้งเตือนหน้าวอร์ด" },
+      { time: "15:01", room: "106", patient: "นายเฟื้องฟู ไทยเจริญ", hn: "HN-2569-1141", type: "ไม่พลิกตัวเกินกำหนด", duration: "44 นาที", level: "เตือนภัย", status: "รอบพลิกตัวถัดไป" },
+      { time: "14:10", room: "102", patient: "นางน้ำเงิน สีสวย", hn: "HN-2569-1211", type: "ปกติ", duration: "-", level: "ปกติ", status: "เสร็จสิ้น" }
+    ];
+
+    function handleLogin(event) {
+      event.preventDefault();
+      const u = document.getElementById('login-username').value.trim();
+      const p = document.getElementById('login-password').value.trim();
+      const errBox = document.getElementById('login-error-alert');
+
+      const validUsers = ['demo1', 'demo2', 'demo3'];
+      if (validUsers.includes(u) && p === 'demo') {
+        errBox.classList.add('hidden');
+        APP_STATE.currentUser = u;
+        document.getElementById('main-header').classList.remove('hidden');
+        navigateTo('page-admission');
+      } else {
+        errBox.classList.remove('hidden');
+      }
+    }
+
+    function fillDemo(username) {
+      document.getElementById('login-username').value = username;
+      document.getElementById('login-password').value = 'demo';
+      document.getElementById('login-error-alert').classList.add('hidden');
+    }
+
+    function clearLoginForm() {
+      document.getElementById('login-username').value = '';
+      document.getElementById('login-password').value = '';
+      document.getElementById('login-error-alert').classList.add('hidden');
+    }
+
+    function handleLogout() {
+      APP_STATE.currentUser = null;
+      document.getElementById('main-header').classList.add('hidden');
+      closeRoomModal();
+      clearLoginForm();
+      navigateTo('page-login');
+    }
+
+    function navigateTo(pageId) {
+      APP_STATE.currentPage = pageId;
+      const pages = ['page-login', 'page-admission', 'page-warroom', 'page-report'];
+      pages.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+      });
+
+      const activePage = document.getElementById(pageId);
+      if (activePage) activePage.classList.remove('hidden');
+
+      // Update Header nav highlight
+      const navMap = {
+        'page-admission': 'nav-btn-his',
+        'page-warroom': 'nav-btn-warroom',
+        'page-report': 'nav-btn-report'
+      };
+
+      ['nav-btn-his', 'nav-btn-warroom', 'nav-btn-report'].forEach(btnId => {
+        const btn = document.getElementById(btnId);
+        if (btn) {
+          btn.classList.remove('bg-sky-100', 'text-sky-700', 'font-bold');
+        }
+      });
+
+      if (navMap[pageId]) {
+        const activeNav = document.getElementById(navMap[pageId]);
+        if (activeNav) activeNav.classList.add('bg-sky-100', 'text-sky-700', 'font-bold');
+      }
+
+      if (pageId === 'page-warroom') {
+        renderWarRoom();
+      } else if (pageId === 'page-report') {
+        renderReportChart();
+        renderIncidentTable();
+      }
+    }
+
+    function populateQuickPatientSelect() {
+      const select = document.getElementById('quick-patient-select');
+      select.innerHTML = '<option value="">-- กรุณาเลือกคนไข้ตัวอย่าง หรือกรอกข้อมูลด้านล่างเอง --</option>';
+      PATIENT_DATABASE.forEach((p, idx) => {
+        const opt = document.createElement('option');
+        opt.value = idx;
+        opt.textContent = `${p.name} | ${p.hn} | ห้อง ${p.room} (${p.monitoring})`;
+        select.appendChild(opt);
+      });
+    }
+
+    function handlePresetPatientSelect(index) {
+      if (index === '') return;
+      const patient = PATIENT_DATABASE[index];
+      if (patient) {
+        document.getElementById('patient-name-input').value = patient.name;
+        document.getElementById('patient-hn-input').value = patient.hn;
+      }
+    }
+
+    function connectHIS() {
+      const inputName = document.getElementById('patient-name-input').value.trim();
+      const inputHN = document.getElementById('patient-hn-input').value.trim();
+      const statusBox = document.getElementById('his-status-box');
+      const statusIcon = document.getElementById('his-status-icon');
+      const statusMsg = document.getElementById('his-status-message');
+      const detailCard = document.getElementById('his-details-card');
+
+      // Find match by either HN or Name
+      const match = PATIENT_DATABASE.find(p => 
+        (inputHN && p.hn.toLowerCase() === inputHN.toLowerCase()) || 
+        (inputName && p.name.includes(inputName))
+      );
+
+      statusBox.classList.remove('hidden', 'bg-emerald-50', 'text-emerald-800', 'border-emerald-200', 'bg-rose-50', 'text-rose-800', 'border-rose-200');
+
+      if (match) {
+        // Success
+        statusBox.classList.add('bg-emerald-50', 'text-emerald-800', 'border-emerald-200');
+        statusIcon.className = 'fa-solid fa-circle-check text-emerald-600 text-xl mr-3';
+        statusMsg.innerText = 'เชื่อมต่อและตรวจสอบสำเร็จ (ดึงข้อมูลเวชระเบียนเรียบร้อย)';
+
+        // Populate details
+        document.getElementById('disp-age').innerText = `${match.age} ปี`;
+        document.getElementById('disp-room').innerText = `ห้อง ${match.room} (เตียงเดี่ยว)`;
+        document.getElementById('disp-doctor').innerText = match.doctor;
+        document.getElementById('disp-diagnosis').innerText = match.diagnosis;
+        
+        const monBadge = document.getElementById('disp-monitoring');
+        monBadge.innerText = match.monitoring;
+        monBadge.className = 'mt-1 inline-flex px-3 py-1 rounded-full text-sm font-bold ' + getMonitoringBadgeClass(match.monitoring);
+
+        detailCard.classList.remove('hidden');
+      } else {
+        // Error
+        statusBox.classList.add('bg-rose-50', 'text-rose-800', 'border-rose-200');
+        statusIcon.className = 'fa-solid fa-triangle-exclamation text-rose-600 text-xl mr-3';
+        statusMsg.innerText = 'ระบบไม่พบข้อมูลผู้ป่วย กรุณาตรวจสอบ ชื่อ-นามสกุล หรือ HN อีกครั้ง';
+        detailCard.classList.add('hidden');
+      }
+    }
+
+    function getMonitoringBadgeClass(level) {
+      switch(level) {
+        case 'ช่วยเหลือตัวเองได้': return 'bg-emerald-100 text-emerald-800 border border-emerald-300';
+        case 'ช่วยเหลือตัวเองพอได้': return 'bg-sky-100 text-sky-800 border border-sky-300';
+        case 'ช่วยเหลือตัวเองไม่ได้': return 'bg-amber-100 text-amber-800 border border-amber-300';
+        case 'เฝ้าระวังพิเศษ': return 'bg-rose-100 text-rose-800 border border-rose-300';
+        default: return 'bg-slate-100 text-slate-700';
+      }
+    }
+
+    function confirmAdmission() {
+      // Simulating nurse acknowledgment and advancing to page 3
+      navigateTo('page-warroom');
+    }
+
+    function renderWarRoom() {
+      const container = document.getElementById('warroom-cards-container');
+      container.innerHTML = '';
+
+      ROOMS_CONFIG.forEach(room => {
+        let borderClass = 'border-slate-200';
+        let badgeColor = 'bg-emerald-100 text-emerald-700';
+        let alertBadge = '';
+        let isEmergency = false;
+
+        if (room.severity === 'critical') {
+          borderClass = 'border-rose-400 ring-2 ring-rose-400 bg-rose-50/20';
+          badgeColor = 'bg-rose-600 text-white animate-pulse';
+          alertBadge = `<span class="px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-600 text-white flex items-center gap-1.5"><i class="fa-solid fa-triangle-exclamation animate-bounce"></i> ${room.riskType}</span>`;
+          isEmergency = true;
+        } else if (room.severity === 'danger') {
+          borderClass = 'border-orange-300 bg-orange-50/20';
+          badgeColor = 'bg-orange-500 text-white';
+          alertBadge = `<span class="px-2.5 py-1 rounded-lg text-xs font-bold bg-orange-500 text-white flex items-center gap-1"><i class="fa-solid fa-clock-rotate-left"></i> ${room.riskType}</span>`;
+        } else if (room.severity === 'warning') {
+          borderClass = 'border-amber-300 bg-amber-50/20';
+          badgeColor = 'bg-amber-500 text-white';
+          alertBadge = `<span class="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 text-white flex items-center gap-1"><i class="fa-solid fa-bell"></i> ${room.riskType}</span>`;
+        } else {
+          alertBadge = `<span class="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-700 flex items-center gap-1"><i class="fa-solid fa-shield-heart"></i> ปกติ</span>`;
+        }
+
+        const card = document.createElement('div');
+        card.className = `bg-white rounded-2xl p-5 border ${borderClass} shadow-sm hover:shadow-md transition cursor-pointer flex flex-col justify-between`;
+        card.onclick = () => openRoomModal(room.roomNumber);
+
+        card.innerHTML = `
+          <div>
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
+              <div class="flex items-center gap-2.5">
+                <span class="w-10 h-10 rounded-xl bg-slate-900 text-white font-bold text-base flex items-center justify-center">
+                  ${room.roomNumber}
+                </span>
+                <div>
+                  <span class="text-xs font-semibold text-slate-500">สถานะห้อง:</span>
+                  <span class="text-xs font-bold text-slate-800 ml-1">${room.occupied ? 'ห้องไม่ว่าง (มีผู้ป่วย)' : 'ห้องว่าง'}</span>
+                </div>
+              </div>
+              <span class="text-xs px-2.5 py-1 rounded-full font-bold ${getMonitoringBadgeClass(room.monitoring)}">
+                ${room.monitoring}
+              </span>
+            </div>
+
+            <div class="space-y-1 mb-4">
+              <h4 class="text-base font-bold text-slate-900">${room.patientName}</h4>
+              <p class="text-xs text-slate-500">HN: ${room.hn} | วินิจฉัย: ${room.diagnosis}</p>
+              <p class="text-xs text-slate-500">แพทย์: ${room.doctor}</p>
+            </div>
+
+            <!-- CCTV Simulation Mini Frame -->
+            <div class="bg-slate-950 rounded-xl p-3 text-slate-300 relative overflow-hidden mb-3">
+              <div class="flex justify-between items-center text-[11px] text-slate-400 mb-2">
+                <span class="flex items-center gap-1"><i class="fa-solid fa-video text-sky-400"></i> กล้อง CCTV #${room.roomNumber}</span>
+                <span class="text-[10px] text-emerald-400 font-mono">SIGNAL OK</span>
+              </div>
+              <div class="py-2 text-center">
+                ${alertBadge}
+              </div>
+              <div class="text-[11px] text-slate-400 text-center mt-1">
+                ${room.riskDetail}
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-2 flex justify-between items-center text-xs">
+            <span class="text-slate-500"><i class="fa-solid fa-stopwatch mr-1"></i>ตรวจพบ: ${room.riskDuration}</span>
+            <span class="text-sky-600 font-bold hover:underline flex items-center">
+              เปิดจอมอนิเตอร์ <i class="fa-solid fa-arrow-up-right-from-square ml-1 text-[10px]"></i>
+            </span>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function openRoomModal(roomNumber) {
+      const room = ROOMS_CONFIG.find(r => r.roomNumber === roomNumber);
+      if (!room) return;
+
+      APP_STATE.selectedRoom = room;
+      APP_STATE.micActive = false;
+      APP_STATE.porterActive = false;
+      APP_STATE.emergencyActive = false;
+
+      // Populate Modal Headers
+      document.getElementById('modal-room-badge').innerText = room.roomNumber;
+      document.getElementById('cctv-cam-id').innerText = room.roomNumber;
+      document.getElementById('modal-room-title').innerText = `ห้อง ${room.roomNumber} - ${room.patientName}`;
+      document.getElementById('modal-room-subtitle').innerText = `HN: ${room.hn} | แพทย์: ${room.doctor} | โรค: ${room.diagnosis}`;
+      
+      const monBadge = document.getElementById('modal-room-level-badge');
+      monBadge.innerText = room.monitoring;
+      monBadge.className = 'px-2.5 py-0.5 rounded-full text-xs font-semibold ' + getMonitoringBadgeClass(room.monitoring);
+
+      document.getElementById('modal-risk-desc').innerText = room.riskType;
+
+      // Bounding box styling
+      const bbox = document.getElementById('ai-bounding-box');
+      bbox.style.top = room.boxPos.top;
+      bbox.style.left = room.boxPos.left;
+      bbox.style.width = room.boxPos.width;
+      bbox.style.height = room.boxPos.height;
+      document.getElementById('ai-detect-tag').innerText = `ROOM ${room.roomNumber}: ${room.riskType}`;
+      document.getElementById('ai-detect-sub').innerText = room.riskDuration !== '-' ? `พบแล้ว ${room.riskDuration}` : 'ปลอดภัย';
+
+      // Reset Button States
+      updateModalButtonStates();
+
+      // Show Modal
+      const modal = document.getElementById('room-detail-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeRoomModal() {
+      const modal = document.getElementById('room-detail-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      APP_STATE.selectedRoom = null;
+    }
+
+    function toggleMicrophone() {
+      APP_STATE.micActive = !APP_STATE.micActive;
+      const overlay = document.getElementById('mic-speaking-overlay');
+      const micLabel = document.getElementById('mic-label');
+      const btn = document.getElementById('btn-mic');
+
+      if (APP_STATE.micActive) {
+        overlay.classList.remove('hidden');
+        micLabel.innerText = 'ปิดไมโครโฟนสื่อสาร';
+        btn.classList.add('bg-sky-600', 'text-white');
+        btn.classList.remove('bg-slate-800', 'text-slate-200');
+      } else {
+        overlay.classList.add('hidden');
+        micLabel.innerText = 'เปิดไมโครโฟนสื่อสาร';
+        btn.classList.remove('bg-sky-600', 'text-white');
+        btn.classList.add('bg-slate-800', 'text-slate-200');
+      }
+    }
+
+    function togglePorter() {
+      APP_STATE.porterActive = !APP_STATE.porterActive;
+      const label = document.getElementById('porter-label');
+      const btn = document.getElementById('btn-porter');
+
+      if (APP_STATE.porterActive) {
+        label.innerText = 'ดำเนินการเรียบร้อย (เสร็จงาน)';
+        btn.classList.add('bg-emerald-600', 'text-white', 'border-emerald-500');
+        btn.classList.remove('bg-amber-950/30', 'text-amber-200');
+      } else {
+        label.innerText = 'เรียกเวรเปลช่วยเหลือ';
+        btn.classList.remove('bg-emerald-600', 'text-white', 'border-emerald-500');
+        btn.classList.add('bg-amber-950/30', 'text-amber-200');
+      }
+    }
+
+    function toggleEmergency() {
+      APP_STATE.emergencyActive = !APP_STATE.emergencyActive;
+      const banner = document.getElementById('modal-emergency-banner');
+      const label = document.getElementById('emergency-label');
+      const btn = document.getElementById('btn-emergency');
+
+      if (APP_STATE.emergencyActive) {
+        banner.classList.remove('hidden');
+        banner.classList.add('flex');
+        label.innerText = 'ปิดสัญญาณ (แจ้งเสร็จสิ้น)';
+        btn.classList.add('bg-rose-600', 'text-white');
+        btn.classList.remove('bg-rose-950/40', 'text-rose-200');
+      } else {
+        banner.classList.add('hidden');
+        banner.classList.remove('flex');
+        label.innerText = 'ฉุกเฉิน (แจ้งด่วน)';
+        btn.classList.remove('bg-rose-600', 'text-white');
+        btn.classList.add('bg-rose-950/40', 'text-rose-200');
+      }
+    }
+
+    function updateModalButtonStates() {
+      document.getElementById('modal-emergency-banner').classList.add('hidden');
+      document.getElementById('mic-speaking-overlay').classList.add('hidden');
+      document.getElementById('mic-label').innerText = 'เปิดไมโครโฟนสื่อสาร';
+      document.getElementById('porter-label').innerText = 'เรียกเวรเปลช่วยเหลือ';
+      document.getElementById('emergency-label').innerText = 'ฉุกเฉิน (แจ้งด่วน)';
+      
+      const btnMic = document.getElementById('btn-mic');
+      btnMic.className = 'p-3.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center gap-2.5 font-semibold transition text-sm';
+
+      const btnPorter = document.getElementById('btn-porter');
+      btnPorter.className = 'p-3.5 rounded-xl border border-amber-600/40 bg-amber-950/30 hover:bg-amber-900/40 text-amber-200 flex items-center justify-center gap-2.5 font-semibold transition text-sm';
+
+      const btnEmer = document.getElementById('btn-emergency');
+      btnEmer.className = 'p-3.5 rounded-xl border border-rose-600 bg-rose-950/40 hover:bg-rose-900/50 text-rose-200 flex items-center justify-center gap-2.5 font-semibold transition text-sm';
+    }
+
+    let chartInstance = null;
+
+    function renderReportChart() {
+      const ctx = document.getElementById('incidentChart');
+      if (!ctx) return;
+
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: ['08:00', '10:00', '12:00', '14:00', '15:00', '16:00 (ปัจจุบัน)'],
+          datasets: [
+            {
+              label: 'คนไข้ตกเตียง (Fall Incident)',
+              data: [0, 0, 1, 0, 0, 1],
+              borderColor: '#ef4444',
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              tension: 0.3,
+              fill: true,
+              borderWidth: 2,
+            },
+            {
+              label: 'ไม่อยู่ที่เตียงเกิน 25 นาที (Out of Bed)',
+              data: [1, 2, 0, 1, 2, 1],
+              borderColor: '#f97316',
+              backgroundColor: 'transparent',
+              tension: 0.3,
+              borderWidth: 2,
+            },
+            {
+              label: 'ไม้กั้นเตียงตก (Bed Rail Down)',
+              data: [2, 1, 3, 2, 1, 2],
+              borderColor: '#eab308',
+              backgroundColor: 'transparent',
+              tension: 0.3,
+              borderWidth: 2,
+            },
+            {
+              label: 'ไม่พลิกตัวเกิน 2 ชม. (Reposition Due)',
+              data: [3, 2, 4, 3, 2, 2],
+              borderColor: '#0284c7',
+              backgroundColor: 'transparent',
+              tension: 0.3,
+              borderWidth: 2,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: {
+                boxWidth: 12,
+                font: { family: 'Sarabun', size: 12 }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { stepSize: 1 }
+            }
+          }
+        }
+      });
+
+      renderDateFilterUI();
+    }
+
+    function setReportType(type) {
+      APP_STATE.reportFilter = type;
+      ['daily', 'weekly', 'monthly', 'yearly'].forEach(t => {
+        const btn = document.getElementById(`rep-btn-${t}`);
+        if (btn) {
+          if (t === type) {
+            btn.className = 'px-3 py-1.5 text-xs rounded-lg font-semibold bg-sky-600 text-white transition';
+          } else {
+            btn.className = 'px-3 py-1.5 text-xs rounded-lg font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition';
+          }
+        }
+      });
+      renderDateFilterUI();
+    }
+
+    function renderDateFilterUI() {
+      const container = document.getElementById('date-filter-inputs');
+      if (!container) return;
+
+      const todayStr = '2026-10-12';
+
+      if (APP_STATE.reportFilter === 'daily') {
+        container.innerHTML = `
+          <label class="text-xs text-slate-500 font-semibold">เลือกวันที่ / ช่วงวัน:</label>
+          <input type="date" value="${todayStr}" class="border border-slate-300 rounded-lg px-2.5 py-1 text-xs">
+          <span class="text-xs text-slate-400">ถึง</span>
+          <input type="date" value="${todayStr}" class="border border-slate-300 rounded-lg px-2.5 py-1 text-xs">
+          <button onclick="applyReportFilter()" class="px-3 py-1 bg-sky-600 text-white rounded-lg text-xs font-semibold">ค้นหา</button>
+        `;
+      } else if (APP_STATE.reportFilter === 'weekly') {
+        container.innerHTML = `
+          <label class="text-xs text-slate-500 font-semibold">เลือกสัปดาห์:</label>
+          <input type="week" value="2026-W42" class="border border-slate-300 rounded-lg px-2.5 py-1 text-xs">
+          <button onclick="applyReportFilter()" class="px-3 py-1 bg-sky-600 text-white rounded-lg text-xs font-semibold">ค้นหา</button>
+        `;
+      } else if (APP_STATE.reportFilter === 'monthly') {
+        container.innerHTML = `
+          <label class="text-xs text-slate-500 font-semibold">เลือกเดือน:</label>
+          <input type="month" value="2026-10" class="border border-slate-300 rounded-lg px-2.5 py-1 text-xs">
+          <button onclick="applyReportFilter()" class="px-3 py-1 bg-sky-600 text-white rounded-lg text-xs font-semibold">ค้นหา</button>
+        `;
+      } else if (APP_STATE.reportFilter === 'yearly') {
+        container.innerHTML = `
+          <label class="text-xs text-slate-500 font-semibold">เลือกปี พ.ศ./ค.ศ.:</label>
+          <select class="border border-slate-300 rounded-lg px-2.5 py-1 text-xs">
+            <option>2026 (พ.ศ. 2569)</option>
+            <option>2025 (พ.ศ. 2568)</option>
+          </select>
+          <button onclick="applyReportFilter()" class="px-3 py-1 bg-sky-600 text-white rounded-lg text-xs font-semibold">ค้นหา</button>
+        `;
+      }
+    }
+
+    function applyReportFilter() {
+      // Simulate reload with filter
+      renderIncidentTable();
+    }
+
+    function renderIncidentTable() {
+      const tbody = document.getElementById('incidents-tbody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      INCIDENT_LOGS.forEach(log => {
+        let badgeColor = 'bg-slate-100 text-slate-700';
+        if (log.level.includes('วิกฤต')) badgeColor = 'bg-rose-100 text-rose-700 font-bold';
+        else if (log.level.includes('อันตราย')) badgeColor = 'bg-orange-100 text-orange-700 font-bold';
+        else if (log.level.includes('เตือนภัย')) badgeColor = 'bg-amber-100 text-amber-700 font-bold';
+        else if (log.level.includes('ปกติ')) badgeColor = 'bg-emerald-100 text-emerald-700 font-bold';
+
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-50 transition';
+        tr.innerHTML = `
+          <td class="p-4 font-mono font-medium text-slate-600">${log.time} น.</td>
+          <td class="p-4 font-bold text-slate-900">ห้อง ${log.room}</td>
+          <td class="p-4">
+            <div class="font-semibold text-slate-800">${log.patient}</div>
+            <div class="text-xs text-slate-400 font-mono">${log.hn}</div>
+          </td>
+          <td class="p-4 font-semibold text-slate-800">${log.type}</td>
+          <td class="p-4 text-slate-600">${log.duration}</td>
+          <td class="p-4"><span class="px-2.5 py-1 rounded-full text-xs ${badgeColor}">${log.level}</span></td>
+          <td class="p-4 text-xs font-medium text-slate-700">${log.status}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById('table-record-count').innerText = `${INCIDENT_LOGS.length} รายการ`;
+    }
+
+    function exportCSV() {
+      let csvContent = "\uFEFFเวลา,ห้อง,ผู้ป่วย,HN,ประเภทเหตุการณ์,ระยะเวลาตรวจพบ,ระดับความเสี่ยง,สถานะ\n";
+      INCIDENT_LOGS.forEach(row => {
+        csvContent += `"${row.time}","${row.room}","${row.patient}","${row.hn}","${row.type}","${row.duration}","${row.level}","${row.status}"\n`;
+      });
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `Risk_Monitoring_Report_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function exportPDF() {
+      // Direct print-to-PDF standard browser trigger
+      window.print();
+    }
+
+    function openForgotPasswordModal() {
+      document.getElementById('forgot-modal').classList.remove('hidden');
+      document.getElementById('forgot-modal').classList.add('flex');
+      document.getElementById('forgot-success-msg').classList.add('hidden');
+      document.getElementById('forgot-email-input').value = '';
+    }
+
+    function closeForgotPasswordModal() {
+      document.getElementById('forgot-modal').classList.add('hidden');
+      document.getElementById('forgot-modal').classList.remove('flex');
+    }
+
+    function submitForgotPassword() {
+      const email = document.getElementById('forgot-email-input').value.trim();
+      if (!email) {
+        return;
+      }
+      document.getElementById('forgot-success-msg').classList.remove('hidden');
+      setTimeout(() => {
+        closeForgotPasswordModal();
+      }, 1800);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      populateQuickPatientSelect();
+
+      // Realtime Clock Loop
+      setInterval(() => {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('th-TH');
+        const liveClock = document.getElementById('live-clock');
+        const cctvTime = document.getElementById('cctv-timestamp');
+        if (liveClock) liveClock.innerText = timeStr;
+        if (cctvTime) {
+          const iso = now.toISOString().replace('T', ' ').slice(0, 19);
+          cctvTime.innerText = iso;
+        }
+      }, 1000);
+    });
+  </script>
+</body>
+</html>
